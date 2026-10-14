@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url=./DSV_OFFLINE_VIEWER.html">
+  <title>Dansavanh | Open preview</title>
+</head>
+<body>
+  <p><a id="viewer" href="./DSV_OFFLINE_VIEWER.html">Open the interactive Dansavanh preview</a></p>
+  <script>
+    const viewer = new URL('./DSV_OFFLINE_VIEWER.html', location.href);
+    viewer.search = location.search;
+    viewer.hash = location.hash;
+    document.getElementById('viewer').href = viewer.href;
+    location.replace(viewer.href);
+  </script>
+</body>
+</html>
