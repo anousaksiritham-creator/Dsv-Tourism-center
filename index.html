@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="lo">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSV Option A Viewer</title>
+<style>
+  html,body{margin:0;height:100%;background:#dfe6ec;font:14px system-ui,sans-serif;overflow:hidden}
+  #scene{position:fixed;inset:0}
+  #ui{position:fixed;top:12px;left:12px;background:#fffd;padding:10px 12px;border-radius:8px;box-shadow:0 1px 6px #0003;max-width:260px}
+  #ui h1{font-size:15px;margin:0 0 8px}
+  #ui label{display:block;margin:4px 0;cursor:pointer}
+  #ui button{margin:6px 6px 0 0}
+  #info{margin-top:8px;font-size:12px;color:#456;white-space:pre-line}
+  #msg{position:fixed;inset:auto 0 12px 0;text-align:center;color:#a00}
+</style>
+<script type="importmap">
+{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="ui">
+  <h1>Dansavanh · Option A</h1>
+  <label><input type="checkbox" id="site" checked> Common site (Module 2)</label>
+  <label><input type="checkbox" id="grid" checked> Grid</label>
+  <label><input type="checkbox" id="wire"> Wireframe</label>
+  <button id="reset">Reset view</button>
+  <div id="info">Loading…</div>
+</div>
+<div id="msg"></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+const $ = id => document.getElementById(id);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = true;
+$('scene').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe6ec);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(60, 100, 40);
+sun.castShadow = true;
+scene.add(sun);
+const grid = new THREE.GridHelper(400, 40, 0x667788, 0xaab4bd);
+scene.add(grid);
+
+const loader = new GLTFLoader();
+const load = url => loader.loadAsync(url).then(g => g.scene);
+let optionA, site;
+const home = {pos:new THREE.Vector3(), target:new THREE.Vector3()};
+
+function stats(obj){
+  let tris = 0, meshes = 0;
+  obj.traverse(o => { if (o.isMesh){ meshes++; o.castShadow = o.receiveShadow = true;
+    const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; }});
+  return {tris, meshes};
+}
+function frame(obj){
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 1.6;
+  home.target.copy(c); home.pos.copy(c).add(new THREE.Vector3(d, d * 0.7, d));
+  grid.position.y = box.min.y;
+  camera.far = d * 20; camera.updateProjectionMatrix();
+  return size;
+}
+function reset(){ camera.position.copy(home.pos); controls.target.copy(home.target); controls.update(); }
+
+try {
+  optionA = await load('./models/Option_A.glb'); scene.add(optionA);
+  const s = stats(optionA), size = frame(optionA);
+  $('info').textContent = `Option A\nMeshes: ${s.meshes}\nTriangles: ${Math.round(s.tris).toLocaleString()}\nSize (m): ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+  reset();
+  load('./models/Module2_Common_Site_UNCHANGED.glb').then(o => { site = o; scene.add(o); o.visible = $('site').checked; }).catch(()=>{});
+} catch (e) {
+  $('info').textContent = 'Failed to load';
+  $('msg').textContent = 'Open via a local server (run serve.bat), not file://. ' + e.message;
+}
+
+$('site').onchange = e => { if (site) site.visible = e.target.checked; };
+$('grid').onchange = e => grid.visible = e.target.checked;
+$('wire').onchange = e => [optionA, site].forEach(r => r?.traverse(o => { if (o.isMesh) [].concat(o.material).forEach(m => m.wireframe = e.target.checked); }));
+$('reset').onclick = reset;
+
+function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
