@@ -28,6 +28,8 @@ This is a concept design package for management review, not for construction.
 
 - `models/Option_A.glb` — Option A (metres, Y-up)
 - `models/Module2_Common_Site_UNCHANGED.glb` — shared site, unchanged
+- `models/Option_A_lights.json` — Option A lighting schedule (8 lights; 3 step lights are in code)
+- `models/realism/` — timber/stone textures and detailed tree canopy, ported from `DSV_OFFLINE_VIEWER.html`
 - `vendor/three/` — three.js r170 (offline, no CDN)
 
 Run `serve.bat` (needs Python) or `python -m http.server 8080`, then open

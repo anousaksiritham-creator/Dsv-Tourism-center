@@ -11,6 +11,9 @@
   #ui h1{font-size:15px;margin:0 0 8px}
   #ui label{display:block;margin:4px 0;cursor:pointer}
   #ui button{margin:6px 6px 0 0}
+  .row{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  #ui button[aria-pressed=true]{background:#037e38;color:#fff}
+  #ui select{width:100%;margin-top:6px}
   #info{margin-top:8px;font-size:12px;color:#456;white-space:pre-line}
   #msg{position:fixed;inset:auto 0 12px 0;text-align:center;color:#a00}
 </style>
@@ -25,6 +28,12 @@
   <label><input type="checkbox" id="site" checked> Common site (Module 2)</label>
   <label><input type="checkbox" id="grid" checked> Grid</label>
   <label><input type="checkbox" id="wire"> Wireframe</label>
+  <div class="row"><b>LIGHT</b>
+    <button data-env="day">Day</button><button data-env="sunset">Sunset</button><button data-env="night">Night</button></div>
+  <label><input type="checkbox" id="roof" checked> Roof + glazing</label>
+  <label><input type="checkbox" id="lamps" checked> Presentation lights (8+3)</label>
+  <label><input type="checkbox" id="lampdbg"> Show light markers</label>
+  <select id="cam"></select>
   <button id="reset">Reset view</button>
   <div id="info">Loading…</div>
 </div>
@@ -38,21 +47,94 @@ const $ = id => document.getElementById(id);
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
 $('scene').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdfe6ec);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = (() => { const e = new THREE.Scene(); e.add(new THREE.Mesh(new THREE.BoxGeometry(20,10,20), new THREE.MeshBasicMaterial({color:0x8a8f94, side:THREE.BackSide}))); const l = new THREE.Mesh(new THREE.PlaneGeometry(8,8), new THREE.MeshBasicMaterial({color:0xffffff})); l.position.y = 4.9; l.rotation.x = Math.PI/2; e.add(l); return pmrem.fromScene(e, .04).texture; })(); scene.environmentIntensity = .5;
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.2));
-const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-sun.position.set(60, 100, 40);
-sun.castShadow = true;
-scene.add(sun);
+const hemi = new THREE.HemisphereLight('#eaf2ff', '#66725c', 2.1);
+const sun = new THREE.DirectionalLight('#fff5df', 3);
+sun.position.set(-28, 45, 20); sun.target.position.set(-1, 0, 2);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, {left:-24, right:24, top:24, bottom:-24, near:.5, far:110});
+sun.shadow.normalBias = .025; sun.shadow.bias = -15e-5;
+scene.add(hemi, sun, sun.target);
 const grid = new THREE.GridHelper(400, 40, 0x667788, 0xaab4bd);
 scene.add(grid);
+
+// ---- Lighting data carried over from DSV_OFFLINE_VIEWER.html (window.DSV_SCHEDULE.options.A) ----
+// Concept renderer power units (not lumens/watts), ~2700-3000 K intent. Also in models/Option_A_lights.json.
+const LIGHT_SCHEDULE_A = [{"position":[-5.6,3.05,0],"power":25,"color":[1,0.73,0.42],"name":"Entrance"},{"position":[-2.3,2.95,-3],"power":28,"color":[1,0.73,0.42],"name":"Interior_north"},{"position":[-2.3,2.95,3],"power":28,"color":[1,0.73,0.42],"name":"Interior_south"},{"position":[-7.5,2.25,-4],"power":8,"color":[1,0.73,0.42],"name":"Monument"},{"position":[-3.8,2.7,8.6],"power":22,"color":[1,0.73,0.42],"name":"Shuttle_waiting"},{"position":[-6,2.1,-5.5],"power":12,"color":[1,0.73,0.42],"name":"Landscape_north"},{"position":[-6,2.1,5.5],"power":12,"color":[1,0.73,0.42],"name":"Landscape_south"},{"position":[-6.5,4,0],"power":9,"color":[1,0.73,0.42],"name":"Sign_wash"}];
+const STEP_LIGHTS_A = [1.6, 4.5, 7.5].map(z => ({name:'Step_edge_' + z, position:[-7.9, .72, z], power:5.5}));
+const ENV = {
+  day:    {sky:'#cbdce2', fog:'#cbdce2', hemi:2.1,  sun:3.1, color:'#fff6e5', ground:'#77836a', exposure:.95, lights:0,   pos:[-28,45,20]},
+  sunset: {sky:'#bdc1bc', fog:'#bdc1bc', hemi:1.2,  sun:2.2, color:'#ffd2a0', ground:'#6a6958', exposure:.93, lights:.38, pos:[-42,13,18]},
+  night:  {sky:'#101e2d', fog:'#152536', hemi:.34,  sun:.18, color:'#91acdf', ground:'#273328', exposure:1,   lights:1,   pos:[-28,45,20]}
+};
+const PRESETS = [
+  {id:'site',name:'Site overview',position:[-48,52,68],target:[0,0,-28]},
+  {id:'road',name:'Road approach',position:[-18,3.3,26],target:[-2,1.9,1]},
+  {id:'hero',name:'Front hero',position:[-23,10,24],target:[-1,1.6,2]},
+  {id:'left',name:'Left exterior',position:[-15,5,-20],target:[-1,1.7,-1]},
+  {id:'right',name:'Right exterior',position:[-12,5,23],target:[-1,1.7,3]},
+  {id:'rear',name:'Rear / service side',position:[20,7,17],target:[0,1.6,1]},
+  {id:'monument',name:'Monument sign',position:[-11,1.9,-1.8],target:[-7.15,1.2,-4],fov:43},
+  {id:'entrance',name:'Main entrance',position:[-12,2.3,7],target:[-4,1.8,.5],fov:52},
+  {id:'reception',name:'Reception',position:[-4.45,1.95,-3.9],target:[-1.6,1.4,.3],fov:65},
+  {id:'hall',name:'Public hall',position:[-.4,1.95,4.9],target:[-3,1.6,-1.6],fov:72},
+  {id:'shuttle',name:'Shuttle waiting',position:[-13,3.3,16],target:[-3.3,1.5,7.8],fov:53},
+  {id:'plan',name:'Roof-off / plan',position:[-1,36,2.01],target:[-1,0,2],plan:true},
+  {id:'sunset',name:'Sunset',position:[-23,10,24],target:[-1,1.6,2],environment:'sunset'},
+  {id:'night',name:'Night arrival',position:[-23,10,24],target:[-1,1.6,2],environment:'night'}
+];
+const lampGroup = new THREE.Group(); lampGroup.name = 'Presentation_lighting_A';
+const markers = new THREE.Group(); markers.visible = false;
+for (const L of LIGHT_SCHEDULE_A) {
+  const pl = new THREE.PointLight('#ffd49c', 0, L.name.startsWith('Interior') ? 9 : 12, 2);
+  pl.position.fromArray(L.position); pl.userData.power = L.power * 2.8; pl.name = L.name; lampGroup.add(pl);
+}
+for (const L of STEP_LIGHTS_A) {
+  const pl = new THREE.PointLight('#ffd7a6', 0, 4, 2);
+  pl.position.fromArray(L.position); pl.userData.power = L.power; pl.name = L.name; lampGroup.add(pl);
+}
+for (const pl of lampGroup.children) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(.18, 12, 8), new THREE.MeshBasicMaterial({color:0xff7a00}));
+  m.position.copy(pl.position); markers.add(m);
+}
+scene.add(lampGroup, markers);
+
+let envName = 'day', curLights = 0, from = null, to = null, t = 1;
+scene.background = new THREE.Color(ENV.day.sky); scene.fog = new THREE.Fog(ENV.day.sky, 150, 400);
+const warmLenses = new Set();
+function setEnv(name){
+  if (!ENV[name]) return;
+  from = {hemi:hemi.intensity, sun:sun.intensity, exposure:renderer.toneMappingExposure, lights:curLights,
+          sky:scene.background.clone(), color:sun.color.clone(), ground:hemi.groundColor.clone(), pos:sun.position.clone()};
+  to = ENV[name]; envName = name; t = 0;
+  document.querySelectorAll('[data-env]').forEach(b => b.setAttribute('aria-pressed', b.dataset.env === name));
+}
+function stepEnv(dt){
+  if (t < 1) {
+    t = Math.min(1, t + dt / 1.2); const k = t * t * (3 - 2 * t), l = THREE.MathUtils.lerp;
+    scene.background.lerpColors(from.sky, new THREE.Color(to.sky), k); scene.fog.color.copy(scene.background);
+    hemi.intensity = l(from.hemi, to.hemi, k); sun.intensity = l(from.sun, to.sun, k);
+    sun.color.lerpColors(from.color, new THREE.Color(to.color), k);
+    hemi.groundColor.lerpColors(from.ground, new THREE.Color(to.ground), k);
+    sun.position.lerpVectors(from.pos, new THREE.Vector3(...to.pos), k);
+    renderer.toneMappingExposure = l(from.exposure, to.exposure, k);
+    curLights = l(from.lights, to.lights, k);
+  }
+  const on = $('lamps').checked;
+  for (const pl of lampGroup.children) pl.intensity = on ? pl.userData.power * curLights : 0;
+  for (const m of warmLenses) m.emissiveIntensity = .15 + (on ? curLights : 0) * 2;
+}
 
 const loader = new GLTFLoader();
 const load = url => loader.loadAsync(url).then(g => g.scene);
@@ -74,14 +156,106 @@ function frame(obj){
   camera.far = d * 20; camera.updateProjectionMatrix();
   return size;
 }
+// ---- Realism / architecture treatment ported from DSV_OFFLINE_VIEWER.html (textures in models/realism/) ----
+const texLoader = new THREE.TextureLoader(), tex = {}, matCache = new Map();
+const TEX_FILES = ['Timber_Base.jpg','Stone_Base.jpg','Timber_Normal.png','Stone_Normal.png','Timber_Roughness.png','Stone_Roughness.png'];
+await Promise.all(TEX_FILES.map(async f => {
+  const t = await texLoader.loadAsync('./models/realism/' + f);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  t.colorSpace = f.includes('Base') ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.flipY = false; tex[f] = t;
+}));
+// world-space triplanar-style UVs (metres / tile size)
+function worldUV(mesh, tile){
+  const g = mesh.geometry.clone(), pos = g.attributes.position, nor = g.attributes.normal, uv = new Float32Array(pos.count * 2);
+  const v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld); n.fromBufferAttribute(nor, i).applyMatrix3(nm);
+    const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z); let u, w;
+    if (ay >= ax && ay >= az) { u = v.x; w = v.z; } else if (ax >= az) { u = v.z; w = -v.y; } else { u = v.x; w = -v.y; }
+    uv[i*2] = u / tile[0]; uv[i*2+1] = w / tile[1];
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); mesh.geometry = g;
+}
+function texturedMat(mesh, kind){
+  const key = kind + '|' + mesh.material.name + '|' + mesh.material.color.getHexString();
+  let m = matCache.get(key);
+  if (!m) {
+    m = mesh.material.clone(); m.map = tex[kind + '_Base.jpg']; m.normalMap = tex[kind + '_Normal.png'];
+    m.normalScale = new THREE.Vector2(.24, .24); m.roughnessMap = tex[kind + '_Roughness.png']; m.bumpMap = null;
+    const c = mesh.material.color;
+    const rgb = kind === 'Timber' ? (c.r < .3 ? [.51,.48,.4] : c.g > .23 ? [.75,.75,.64] : [.74,.7,.61])
+                                  : (c.r > .6 ? [.8,.72,.62] : c.r < .5 ? [.7,.7,.6] : [.76,.74,.7]);
+    m.color.setRGB(...rgb); m.roughness = kind === 'Timber' ? .86 : 1; m.metalness = 0; m.envMapIntensity = .35; matCache.set(key, m);
+  }
+  mesh.material = m; worldUV(mesh, kind === 'Timber' ? [1.2, 2.4] : [1.2, 1.2]);
+}
+const SIGN = ['Main_TOURIST_CENTER_\u6E38\u5BA2\u4E2D\u5FC3', 'Official_wayfinding_artwork'];
+const walkFloors = [];
+function tuneMaterials(root){
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = o.receiveShadow = true;
+    if (/Raised_floor|landing|ramp_6m|waiting_paving|_floor/.test(o.name)) walkFloors.push(o);
+    const m = o.material, n = m.name;
+    if (SIGN.includes(n)) { m.toneMapped = false; m.side = THREE.FrontSide; m.fog = false; m.color.set('#ffffff'); o.castShadow = o.receiveShadow = false; return; }
+    if (n === 'Timber' || n === 'Stone') { texturedMat(o, n); return; }
+    if (n === 'SafetyGlass') {
+      o.material = new THREE.MeshPhysicalMaterial({color:'#d4e7e4', roughness:.13, metalness:0, transparent:true, opacity:.24,
+        transmission:.12, thickness:.006, ior:1.45, envMapIntensity:.65, depthWrite:false, side:THREE.DoubleSide});
+      o.castShadow = false; return;
+    }
+    if (n === 'Metal' || n === 'RoofMetal') { m.roughness = n === 'Metal' ? .46 : .6; m.metalness = .25; m.envMapIntensity = .3; }
+    if (n === 'Ceramic') m.roughness = .32;
+    if (n === 'Plaster') { m.normalMap = tex['Stone_Normal.png']; m.normalScale?.set(.03, .03); m.roughness = .91; }
+    if (n === 'Upholstery') { m.roughness = .96; m.metalness = 0; }
+    if (n === 'Plant') { m.roughness = .97; m.metalness = 0; m.color.set('#507132'); }
+    if (n === 'WarmLens') { m.emissiveIntensity = .1; warmLenses.add(m); }
+    if (o.name.startsWith('Visitor_information_display')) {
+      const g = o.geometry.clone(), uv = g.attributes.uv;
+      if (uv) { for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i)); uv.needsUpdate = true; }
+      o.geometry = g;
+    }
+  });
+}
+// Site (Module 2): road / shoulder / terrain / lake treatment, hide placeholder trees + plot outline, add detailed canopy
+async function treatSite(root){
+  root.updateMatrixWorld(true);
+  const trunk = new Map();
+  root.traverse(f => {
+    if (!f.isMesh) return;
+    if (f.name.includes('_canopy') || f.name === 'Approximate_marked_plot' || f.name.startsWith('woodland')) { f.visible = false; return; }
+    f.receiveShadow = true; f.castShadow = false;
+    const isTrunk = f.name.endsWith('_trunk'), k = isTrunk ? 'trunk' : f.material.uuid;
+    const m = isTrunk && trunk.has(k) ? trunk.get(k) : f.material.clone(); if (isTrunk) trunk.set(k, m);
+    f.material = m; m.roughness = .95;
+    if (isTrunk) { m.color.set('#514636'); m.roughness = 1; }
+    else if (/_road$/.test(f.name)) { m.color.set('#626460'); m.normalMap = tex['Stone_Normal.png']; m.normalScale = new THREE.Vector2(.14, .14); worldUV(f, [.7, .7]); }
+    else if (/shoulder|parking/i.test(f.name)) { texturedMat(f, 'Stone'); f.material = f.material.clone(); f.material.color.set('#a89b80'); }
+    else if (f.name === 'Indicative_terrain') { m.color.set('#71815a'); m.normalMap = tex['Stone_Normal.png']; m.normalScale = new THREE.Vector2(.24, .24); worldUV(f, [1, 1]); }
+    else if (f.name === 'Lake_canal_context') { m.color.set('#527a77'); m.roughness = .28; m.metalness = .18; m.envMapIntensity = .5; }
+  });
+  const canopy = (await loader.loadAsync('./models/realism/Canopy_Detail.glb')).scene;
+  canopy.name = 'PRESENTATION_FOLIAGE_LOCKED_LOCATIONS';
+  canopy.traverse(f => { if (f.isMesh) { f.castShadow = true; f.receiveShadow = true; f.material.alphaTest = .48; f.material.side = THREE.DoubleSide; f.material.roughness = .95; if (f.material.map) f.material.map.anisotropy = 2; } });
+  root.add(canopy);
+}
+function setRoof(v){ optionA?.traverse(o => { if (o.name === 'roof' || o.name === 'glazing') o.visible = v; }); }
+function applyPreset(id){
+  const p = PRESETS.find(x => x.id === id); if (!p) return;
+  camera.fov = p.fov || 48; camera.updateProjectionMatrix();
+  camera.position.fromArray(p.position); controls.target.fromArray(p.target); controls.update();
+  $('roof').checked = !p.plan; setRoof(!p.plan);
+  if (p.environment) setEnv(p.environment);
+}
 function reset(){ camera.position.copy(home.pos); controls.target.copy(home.target); controls.update(); }
 
 try {
-  optionA = await load('./models/Option_A.glb'); scene.add(optionA);
+  optionA = await load('./models/Option_A.glb'); tuneMaterials(optionA); scene.add(optionA);
   const s = stats(optionA), size = frame(optionA);
   $('info').textContent = `Option A\nMeshes: ${s.meshes}\nTriangles: ${Math.round(s.tris).toLocaleString()}\nSize (m): ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
   reset();
-  load('./models/Module2_Common_Site_UNCHANGED.glb').then(o => { site = o; scene.add(o); o.visible = $('site').checked; }).catch(()=>{});
+  load('./models/Module2_Common_Site_UNCHANGED.glb').then(async o => { site = o; scene.add(o); o.visible = $('site').checked; await treatSite(o); }).catch(e => { $('msg').textContent = 'Site: ' + e.message; });
 } catch (e) {
   $('info').textContent = 'Failed to load';
   $('msg').textContent = 'Open via a local server (run serve.bat), not file://. ' + e.message;
@@ -90,11 +264,19 @@ try {
 $('site').onchange = e => { if (site) site.visible = e.target.checked; };
 $('grid').onchange = e => grid.visible = e.target.checked;
 $('wire').onchange = e => [optionA, site].forEach(r => r?.traverse(o => { if (o.isMesh) [].concat(o.material).forEach(m => m.wireframe = e.target.checked); }));
-$('reset').onclick = reset;
+$('reset').onclick = () => { $('cam').value = 'hero'; applyPreset('hero'); };
+$('cam').innerHTML = PRESETS.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+$('cam').value = 'hero'; $('cam').onchange = e => applyPreset(e.target.value);
+$('roof').onchange = e => setRoof(e.target.checked);
+$('lampdbg').onchange = e => markers.visible = e.target.checked;
+document.querySelectorAll('[data-env]').forEach(b => b.onclick = () => setEnv(b.dataset.env));
+setEnv('day');
+applyPreset('hero');
 
 function resize(){ renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+let last = performance.now();
+renderer.setAnimationLoop(() => { const n = performance.now(); stepEnv((n - last) / 1000); last = n; controls.update(); renderer.render(scene, camera); });
 </script>
 </body>
 </html>

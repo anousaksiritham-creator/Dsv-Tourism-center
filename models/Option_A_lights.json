@@ -1,0 +1,114 @@
+[
+ {
+  "position": [
+   -5.6,
+   3.05,
+   0
+  ],
+  "power": 25,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Entrance"
+ },
+ {
+  "position": [
+   -2.3,
+   2.95,
+   -3
+  ],
+  "power": 28,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Interior_north"
+ },
+ {
+  "position": [
+   -2.3,
+   2.95,
+   3
+  ],
+  "power": 28,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Interior_south"
+ },
+ {
+  "position": [
+   -7.5,
+   2.25,
+   -4
+  ],
+  "power": 8,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Monument"
+ },
+ {
+  "position": [
+   -3.8,
+   2.7,
+   8.6
+  ],
+  "power": 22,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Shuttle_waiting"
+ },
+ {
+  "position": [
+   -6,
+   2.1,
+   -5.5
+  ],
+  "power": 12,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Landscape_north"
+ },
+ {
+  "position": [
+   -6,
+   2.1,
+   5.5
+  ],
+  "power": 12,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Landscape_south"
+ },
+ {
+  "position": [
+   -6.5,
+   4,
+   0
+  ],
+  "power": 9,
+  "color": [
+   1,
+   0.73,
+   0.42
+  ],
+  "name": "Sign_wash"
+ }
+]
