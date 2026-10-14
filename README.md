@@ -13,8 +13,9 @@ scripts, so it also opens directly without an internet connection.
 
 ## Hosting
 
-GitHub Pages publishes the root folder of `main`. The entry page opens the original
-viewer, and the project-home link returns to the preview. `.nojekyll` keeps the
+GitHub Pages publishes the root folder of `main`. `index.html` is a preview copy of
+the viewer with a relative project-home link that also works under the repository
+URL. The project-home link returns to the preview. `.nojekyll` keeps the
 package available as plain static files.
 
 The uploaded `DSV_OFFLINE_VIEWER.html` is preserved byte-for-byte.
